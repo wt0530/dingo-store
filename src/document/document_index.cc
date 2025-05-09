@@ -245,7 +245,12 @@ butil::Status DocumentIndex::Add(const std::vector<pb::common::DocumentWithId>& 
     uint64_t document_id = document_with_id.id();
 
     const auto& document = document_with_id.document();
+
     for (const auto& [field_name, document_value] : document.document_data()) {
+      // skip the field which not set
+      if (document_value.field_value().data_case() == pb::common::ScalarField::DATA_NOT_SET) {
+        continue;
+      }
       switch (document_value.field_type()) {
         case pb::common::ScalarFieldType::STRING:
           text_column_names.push_back(field_name);
@@ -284,7 +289,13 @@ butil::Status DocumentIndex::Add(const std::vector<pb::common::DocumentWithId>& 
           break;
       }
     }
-
+    if (text_column_names.empty() && i64_column_names.empty() && f64_column_names.empty() &&
+        bytes_column_names.empty() && date_column_names.empty() && bool_column_names.empty()) {
+      DINGO_LOG(INFO) << fmt::format(
+          "[document_index.raw][id({})] document_id: ({}) document_value not set so not create document index", id_,
+          document_id);
+      continue;
+    }
     auto bool_result = ffi_index_multi_type_column_docs(
         index_path_, document_id, text_column_names, text_column_docs, i64_column_names, i64_column_docs,
         f64_column_names, f64_column_docs, bytes_column_names, bytes_column_docs, date_column_names, date_column_docs,
